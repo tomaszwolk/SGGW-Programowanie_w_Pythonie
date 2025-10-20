@@ -27,6 +27,8 @@ from sqlalchemy import (
     ForeignKey,
     Integer,
     String,
+    Table,
+    Column,
     create_engine,
     delete,
     select,
@@ -39,6 +41,29 @@ class Base(DeclarativeBase):
     pass
 
 
+# Tabela asocjacyjna dla relacji wiele-do-wielu między Subject i Expriment - Ćwiczenie 5
+subject_experiment = Table(
+    "subject_experiment",
+    Base.metadata,
+    Column("subject_id", ForeignKey("subject.id")),
+    Column("experiment_id", ForeignKey("experiment.id"))
+)
+engine = create_engine("sqlite:///test.db", echo=False)
+
+
+class Subject(Base):
+    __tablename__ = "subject"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    gdpr_accepted: Mapped[bool] = mapped_column(Boolean, default=False)
+
+    # Relacja wiele-do-wielu z Experiment
+    experiments: Mapped[List["Experiment"]] = relationship(
+        secondary=subject_experiment,
+        back_populates="subjects"
+    )
+
+
 class Experiment(Base):
     __tablename__ = "experiment"
 
@@ -48,7 +73,14 @@ class Experiment(Base):
     type: Mapped[int] = mapped_column(Integer)
     finished: Mapped[bool] = mapped_column(Boolean, default=False)
 
+    # Relacja jeden-do-wielu z DataPoint
     data_points: Mapped[List["DataPoint"]] = relationship(back_populates="experiment")
+
+    # Relacja wiele-do-wielu z Subject - Ćwiczenie 5
+    subjects: Mapped[List["Subject"]] = relationship(
+        secondary=subject_experiment,
+        back_populates="experiments"
+    )
 
     def __repr__(self) -> str:
         return f"Experiment(id={self.id}, title={self.title}, created_at={self.created_at}, " \
@@ -70,7 +102,6 @@ class DataPoint(Base):
             "target_value={self.target_value:.4f})"
 
 
-engine = create_engine("sqlite:///test.db", echo=False)
 print(engine.connect())
 Base.metadata.create_all(engine)
 
@@ -119,7 +150,7 @@ with Session(engine) as session:
     for datapoint in datapoints:
         print(datapoint)
 
-# Zaktualizował wszystkie wierszy Experiments poprzez ustawienie finished na True
+# Zaktualizował wszystkie wiersze Experiments poprzez ustawienie finished na True
 with Session(engine) as session:
     stmt = update(Experiment).values(finished=True)
     session.execute(stmt)
